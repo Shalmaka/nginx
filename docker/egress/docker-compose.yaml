@@ -1,0 +1,70 @@
+services:
+  proxy-egress:
+    image: shalmaka/nginx:0.5.5-1.27.4-alpine-slim
+    restart: unless-stopped
+
+    env_file:
+      - ../.env
+      - .env
+
+    environment:
+      # Enable exactly ONE egress mode:
+      # ---------------------------------------------------------
+      # EGRESS HTTP (CONNECT)
+      # ---------------------------------------------------------
+      # EGRESS_HTTP_ENABLED: "true"
+
+      # ---------------------------------------------------------
+      # EGRESS STREAM (TCP/UDP)
+      # ---------------------------------------------------------
+      # EGRESS_STREAM_ENABLED: "true"
+
+      # ---------------------------------------------------------
+      # EGRESS MAIL (SMTP)
+      # ---------------------------------------------------------
+      # EGRESS_MAIL_ENABLED: "true"
+
+    read_only: true
+
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=1777
+      - /var/cache/nginx:uid=101,gid=101,mode=0755
+      - /var/run:uid=101,gid=101,mode=0755
+      - /var/log/nginx:uid=101,gid=101,mode=0755
+      - /etc/nginx/conf-enabled:uid=101,gid=101,mode=0755
+
+    volumes:
+      # ---------------------------------------------------------
+      # EGRESS HTTP CONFIGS
+      # ---------------------------------------------------------
+      # - ./egress/http-all.conf:/etc/nginx/conf-enabled/egress/http.d/http-all.conf:ro
+
+      # ---------------------------------------------------------
+      # EGRESS STREAM CONFIGS
+      # ---------------------------------------------------------
+      # - ./egress/stream.conf:/etc/nginx/conf-enabled/egress/stream.d/stream.conf:ro
+
+      # ---------------------------------------------------------
+      # EGRESS MAIL (SMTP) CONFIGS
+      # ---------------------------------------------------------
+      # - ./egress/mail.conf:/etc/nginx/conf-enabled/egress/mail.d/mail.conf:ro
+
+      # Certificates only needed for SMTPS (465)
+      # - ./certs/:/usr/share/nginx/certs/:ro
+
+    networks:
+      # EGRESS needs external network to reach the internet
+      external:
+        ipv4_address: ${EXTERNAL_IP}
+
+      # Internal network for apps that need outbound access
+      internal: {}
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    cap_add:
+      - NET_BIND_SERVICE

@@ -1,98 +1,142 @@
 # NGINX (Docker Only)
 
-This repository provides a secure and lightweight NGINX setup that can be used as a web server, reverse proxy, forward proxy (for outbound internet access), stream (TCP/UDP) proxy, and SMTP proxy.
+This repository provides a secure, modular, and lightweight NGINX setup designed exclusively for Docker environments (no Kubernetes).  
+It can operate as:
 
-It is designed for Docker environments without Kubernetes and supports publishing services externally via a `macvlan` network, while communicating internally with backend containers through an isolated internal network.
+- A web server and reverse proxy  
+- An HTTP egress proxy (CONNECT)  
+- A TCP/UDP stream proxy  
+- An SMTP proxy (via the NGINX `mail` module)  
+- A load balancer for HTTP, TCP, and SMTP services  
+
+The system is built to be **immutable**, **secure**, **modular**, and **easy to extend**, with configuration dynamically loaded from structured directories.
+
+---
 
 ## 🔧 Features
 
-- **Web server and reverse proxy** with HTTPS support  
-- **Forward proxy** capabilities for outbound internet access (requires additional configuration or modules)  
-- **TCP/UDP stream proxy** for load balancing and forwarding non-HTTP protocols  
-- **SMTP mail proxy** support
-- **Dynamic environment-based configuration**  
-- **Dual-network architecture:** macvlan (external) + isolated internal network  
-- **Hardened, production-ready NGINX configuration**  
-- **Runs as non-root user** for improved container security  
-- **Isolated, audit-level logging**
+- **Reverse proxy & web server** with HTTPS support  
+- **HTTP egress proxy** using CONNECT  
+- **TCP/UDP egress proxy** using the `stream` module  
+- **SMTP egress proxy** using the `mail` module, supporting:
+  - SMTP (25)
+  - SMTPS (465)
+  - Submission (587)
+  - IP/network ACLs
+  - Load balancing & failover
+- **Fully modular configuration**, organized by purpose:
+  - `ingress/http.d/*.conf`
+  - `ingress/stream.d/*.conf`
+  - `egress/http.d/*.conf`
+  - `egress/stream.d/*.conf`
+  - `egress/mail.d/*.conf`
+- **Smart entrypoint** that validates and assembles the final configuration  
+- **Optional dual-network architecture**:
+  - `macvlan` for external exposure  
+  - `bridge` for internal container communication  
+- **Runs as non-root**  
+- **Read-only filesystem**  
+- **Hardened, production-grade NGINX configuration**  
+- **Isolated, structured logging**
 
-<!-- ## 🧱 Project Structure
+---
 
-<pre>
-.
-├── Dockerfile               # Builds the secure NGINX container
-├── entrypoint.sh            # Generates nginx.conf from template
-├── nginx.conf.template      # Templated NGINX configuration
-├── docker-compose.yml       # Compose setup with dual network
-├── .env                     # Environment variables
-├── create_macvlan.sh        # Script to create macvlan network
-└── certs/                   # TLS certs mounted into the container
-</pre> -->
-<!-- 
-## 🐳 How to Use (with Docker Compose)
+## 🧱 Modular Configuration Structure
 
-This project includes a `docker-compose.yml` ready to be used in environments with dual network configuration:
+The configuration is split into independent, purpose-specific directories:
+```
+/etc/nginx/conf-enabled/
+├── ingress/
+│   ├── http.d/
+│   └── stream.d/
+├── egress/
+│   ├── http.d/
+│   ├── stream.d/
+│   └── mail.d/
+└── core/
+```
 
-- **`external`**: Exposed `macvlan` network for communication with the outside world
-- **`internal`**: Isolated internal bridge network for communication between containers
+Each directory contains only the `.conf` files relevant to that traffic type.
 
-To get started:
+The entrypoint ensures:
 
-<pre>
-1. Copy and edit the provided .env file with your environment settings
-2. Ensure the external 'macvlan' and internal 'network' Docker networks exist
-3. Run:
-   docker compose up -d
-</pre>
+- required directories exist  
+- at least one valid configuration is present  
+- the final NGINX configuration is assembled without errors  
 
-The Compose file already includes:
+---
 
-- A static IP configuration via `macvlan`
-- An internal connection to upstream via a bridge network
-- Strict security hardening (non-root, read-only FS, limited capabilities)
-- Environment variable support via `.env`
+## 📡 Egress Capabilities
 
-> ✅ Use the `docker-compose.yml` in this repository as a base and adjust as needed.
+### HTTP (CONNECT)
+A true forward proxy for outbound internet access, supporting:
 
-### 💻 Creating the macvlan Network
+- dynamic host/port selection  
+- ACLs  
+- domain restrictions  
+- full auditing  
 
-Before starting the NGINX container, you need to create the `macvlan` network for the external IP exposure.
+### STREAM (TCP/UDP)
+Static forwarding for non-HTTP protocols such as:
 
-1. **Configure the `.env` file** with your environment settings (static IP, network, etc.).
-2. **Run the `create_macvlan.sh` script** to create the network:
+- databases  
+- message queues  
+- binary protocols  
+- DNS, syslog, SNMP, etc.  
 
-<pre>
-./create_macvlan.sh
-</pre>
+Supports load balancing and failover.
 
-This script will create a `macvlan` network using the `eth0` interface on your host system, with a specified subnet and gateway.
+### SMTP (MAIL)
+A real SMTP proxy using the NGINX `mail` module:
 
---- -->
+- SMTP (25)  
+- SMTPS (465)  
+- Submission (587)  
+- STARTTLS passthrough  
+- IP/network ACLs  
+- Load balancing  
+- Failover  
 
-<!-- ## ⚙️ Environment Variables
+Configurations are added as:
 
-Defined in `.env`, used by Docker Compose.
+```
+/etc/nginx/conf-enabled/egress/mail.d/mail-*.conf
+```
 
-| Variable              | Description                               |
-|-----------------------|-------------------------------------------|
-| `INTERFACE_NAME`      | The network interface (e.g., `eth0`) used for macvlan creation. |
-| `VLAN_ID`             | The VLAN ID (e.g., `100`) used in the `macvlan` interface. |
-| `STATIC_IP`           | Static IP assigned on macvlan             |
-| `INTERFACE_HTTPS_PORT`| Port exposed inside container (usually 443) |
-| `UPSTREAM_SERVER`     | Internal backend container name           |
-| `UPSTREAM_PORT`       | Backend container port                    |
-| `SERVER_NAME`         | Domain for server block                   |
-| `CERT_FILENAME`       | Certificate file name (in `/www/certs`)   |
-| `KEY_FILENAME`        | Private key file name (in `/www/certs`)   | -->
+---
 
-<!-- ## 📂 Example Directory Structure
+## 🔐 Security
 
-<pre>
-certs/
-├── cert.pem
-└── key.pem
-</pre> -->
+- Runs as **non-root**  
+- **Read-only filesystem**  
+- Minimal attack surface  
+- No unnecessary modules  
+- No shell access  
+- Strict ACLs  
+- No internal ports exposed  
+- Immutable configuration at runtime  
+
+---
+
+## 🐳 Docker Usage
+
+The container is designed for Docker environments with:
+
+- an isolated internal network (`bridge`)  
+- an optional external network (`macvlan`)  
+- mounted volumes only for certificates and logs  
+
+It can serve as:
+
+- a reverse proxy  
+- an egress gateway  
+- a load balancer  
+- an internal SMTP relay  
+- a secure network gateway for containers  
+
+---
 
 ## 📜 License
 
-This project is open source and licensed under the <a href="LICENSE">MIT License</a>.
+This project is open source and licensed under the  
+<a href="LICENSE">MIT License</a>.

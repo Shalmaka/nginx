@@ -1,49 +1,50 @@
 FROM nginx:1.27.4-alpine-slim
 
-# Install required packages (minimal)
+# Install minimal required packages
 RUN apk add --no-cache curl && apk upgrade --no-cache
 
-# Remove default HTML files
+# Remove default NGINX HTML assets
 RUN rm -rf /usr/share/nginx/html/*
 
-# Copy entrypoint and set correct permissions
+# Copy entrypoint and set permissions
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod 700 /entrypoint.sh && \
     chown nginx:nginx /entrypoint.sh
 
-# Create directories for NGINX configs available and set ownership
-RUN mkdir -p /etc/nginx/conf-available/http.d && \
-    mkdir -p /etc/nginx/conf-available/stream.d && \
-    chown -R nginx:nginx /etc/nginx/conf-available
+# Create configuration directories
+RUN mkdir -p /etc/nginx/conf-available && \
+    mkdir -p /etc/nginx/conf-enabled/ingress/http.d && \
+    mkdir -p /etc/nginx/conf-enabled/ingress/stream.d && \
+    mkdir -p /etc/nginx/conf-enabled/egress/http.d && \
+    mkdir -p /etc/nginx/conf-enabled/egress/stream.d && \
+    mkdir -p /etc/nginx/conf-enabled/egress/mail.d && \
+    mkdir -p /etc/nginx/templates
 
-# Create directories for NGINX configs enabled and set ownership
-RUN mkdir -p /etc/nginx/conf-enabled/http.d/ingress && \
-    mkdir -p /etc/nginx/conf-enabled/stream.d && \
-    chown -R nginx:nginx /etc/nginx/conf-enabled
-
-# Copy base and additional NGINX configuration files
+# Copy base configuration files
 COPY nginx.conf /etc/nginx/nginx.conf
-COPY http.conf /etc/nginx/conf-available/http.conf
-COPY stream.conf /etc/nginx/conf-available/stream.conf
-COPY templates/ingress/ingress.conf /etc/nginx/conf-available/http.d/ingress.d/ingress.conf
-COPY templates/ingress/ingress.ssl.conf /etc/nginx/conf-available/http.d/ingress.d/ingress.ssl.conf
-COPY templates/stream/server.conf /etc/nginx/conf-available/stream.d/server.conf
+COPY ingress-*.conf /etc/nginx/conf-available/
+COPY egress-*.conf /etc/nginx/conf-available/
+COPY templates/* /etc/nginx/templates/
 
-# Optional: leave /usr/share/nginx/html owned by nginx, but writeable externally via volume
+# Create runtime directories (actual permissions will be overridden by tmpfs if used)
 RUN mkdir -p /usr/share/nginx/html && \
-    chown -R nginx:nginx /usr/share/nginx/html
+    mkdir -p /var/cache/nginx && \
+    mkdir -p /var/log/nginx && \
+    mkdir -p /var/run && \
+    mkdir -p /usr/share/nginx/certs && \
+    touch /var/log/nginx/error.log && \
+    touch /var/run/nginx.pid
 
-# Prepare log files and ownership
-RUN touch /var/log/nginx/error.log && \
-    chown -R nginx:nginx /var/log/nginx/
+# Ensure runtime directories are writable when not using read-only mode
+RUN chown -R nginx:nginx \
+    /etc/nginx/conf-enabled \
+    /var/cache/nginx \
+    /var/log/nginx \
+    /var/run \
+    /usr/share/nginx/certs
 
-# Prepare NGINX runtime dirs and certs
-RUN mkdir -p /var/cache/nginx /usr/share/nginx/certs && \
-    touch /var/run/nginx.pid && \
-    chown -R nginx:nginx /var/cache/nginx /var/run/nginx.pid /etc/nginx /usr/share/nginx/certs
-
-# Set user (non-root)
+# Run container as non-root user
 USER nginx
 
-# Entrypoint
+# Entrypoint script
 ENTRYPOINT [ "/entrypoint.sh" ]

@@ -1,0 +1,9 @@
+services:
+  proxy-ingress:
+    extends:
+      file: ./ingress/docker-compose.yaml
+      service: proxy-ingress
+  proxy-egress:
+    extends:
+      file: ./egress/docker-compose.yaml
+      service: proxy-egress  

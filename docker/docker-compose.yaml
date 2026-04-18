@@ -1,0 +1,5 @@
+networks:
+  internal:
+    internal: true
+  external:
+    external: true

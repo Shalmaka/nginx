@@ -1,0 +1,56 @@
+services:
+  proxy-ingress:
+    image: shalmaka/nginx:0.5.5-1.27.4-alpine-slim
+    restart: unless-stopped
+
+    env_file:
+      - ../.env
+      - .env
+
+    environment:
+      # Enable INGRESS mode
+      INGRESS_HTTP_ENABLED: "true"     # for HTTP ingress
+      # INGRESS_STREAM_ENABLED: "true" # for TCP/UDP ingress
+
+    read_only: true
+
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=1777
+      - /var/cache/nginx:uid=101,gid=101,mode=0755
+      - /var/run:uid=101,gid=101,mode=0755
+      - /var/log/nginx:uid=101,gid=101,mode=0755
+      - /etc/nginx/conf-enabled:uid=101,gid=101,mode=0755
+
+    volumes:
+      # ---------------------------------------------------------
+      # INGRESS HTTP CONFIGS
+      # ---------------------------------------------------------
+      # Mount your HTTP ingress configs here
+      - ./ingress/http-ssl.conf:/etc/nginx/conf-enabled/ingress/http.d/http-ssl.conf:ro
+
+      # TLS certificates (only needed for HTTPS ingress)
+      - ./certs/fullchain.pem:/usr/share/nginx/certs/fullchain.pem:ro
+      - ./certs/privkey.pem:/usr/share/nginx/certs/privkey.pem:ro
+
+      # ---------------------------------------------------------
+      # INGRESS STREAM CONFIGS
+      # ---------------------------------------------------------
+      # For TCP/UDP ingress, mount here instead:
+      # - ./ingress/stream.conf:/etc/nginx/conf-enabled/ingress/stream.d/stream.conf:ro
+
+    networks:
+      # INGRESS requires external exposure (macvlan)
+      external:
+        ipv4_address: ${EXTERNAL_IP}
+
+      # Internal network for upstream apps
+      internal: {}
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    cap_add:
+      - NET_BIND_SERVICE
